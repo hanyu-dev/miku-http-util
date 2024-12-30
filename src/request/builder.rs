@@ -1,6 +1,6 @@
 //! HTTP request utilities: builder related.
 
-use std::{borrow::Cow, convert::Infallible, error::Error, ops};
+use std::{borrow::Cow, convert::Infallible, ops};
 
 use macro_toolset::{
     md5, str_concat_v2 as str_concat,
@@ -83,7 +83,7 @@ impl<'q> Queries<'q> {
 /// Helper trait for query string signing.
 pub trait SignerT {
     /// The error type.
-    type Error: Error;
+    type Error;
 
     /// Sign the query string and return the final query string.
     fn build_signed(self, queries: Queries) -> Result<String, Self::Error>;
