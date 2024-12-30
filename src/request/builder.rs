@@ -1,6 +1,6 @@
 //! HTTP request utilities: builder related.
 
-use std::borrow::Cow;
+use std::{borrow::Cow, convert::Infallible, error::Error};
 
 use macro_toolset::{
     md5, str_concat_v2 as str_concat,
@@ -55,15 +55,18 @@ impl<'q> Queries<'q> {
 
     #[inline]
     /// Build the query string with given signer.
-    pub fn build_signed<S: SignerT>(self, signer: S) -> String {
+    pub fn build_signed<S: SignerT>(self, signer: S) -> Result<String, S::Error> {
         signer.build_signed(self)
     }
 }
 
 /// Helper trait for query string signing.
 pub trait SignerT {
+    /// The error type.
+    type Error: Error;
+
     /// Sign the query string and return the final query string.
-    fn build_signed(self, queries: Queries) -> String;
+    fn build_signed(self, queries: Queries) -> Result<String, Self::Error>;
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -92,7 +95,8 @@ impl Default for Md5Signer<'_> {
 }
 
 impl SignerT for Md5Signer<'_> {
-    fn build_signed(self, queries: Queries) -> String {
+    type Error = Infallible;
+    fn build_signed(self, queries: Queries) -> Result<String, Self::Error> {
         let queries = queries.sorted();
 
         let mut final_string_buf = String::with_capacity(64);
@@ -120,7 +124,7 @@ impl SignerT for Md5Signer<'_> {
             final_string_buf.push_any(("&", self.query_key, "=", signed.as_str()));
         }
 
-        final_string_buf
+        Ok(final_string_buf)
     }
 }
 
@@ -183,7 +187,8 @@ mod tests {
         let queries = Queries::with_capacity(16)
             .push_any("test1", 1)
             .push_any("test2", "2")
-            .build_signed(Md5Signer::new_default().with_suffix_salt(Some("0123456789abcdef")));
+            .build_signed(Md5Signer::new_default().with_suffix_salt(Some("0123456789abcdef")))
+            .unwrap();
 
         assert_eq!(
             queries,
