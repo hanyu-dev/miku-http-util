@@ -7,6 +7,7 @@ use http::{
 };
 use macro_toolset::{
     b64_decode, b64_encode_bytes, base64::engine::general_purpose::STANDARD_NO_PAD,
+    string_v2::StringExtT,
 };
 
 /// Trait helper for managing HTTP header keys.
@@ -88,6 +89,28 @@ pub trait HeaderMapExtT {
         value: impl TryInto<HeaderValue, Error = InvalidHeaderValue>,
     ) -> Result<&mut Self, InvalidHeaderValue> {
         self.insert_exact(key.as_header_name(), value.try_into()?);
+        Ok(self)
+    }
+
+    /// Insert general http header, for any value that implements [`StringExtT`]
+    ///
+    /// For gRPC metadata, please instead use [`MetadataMapExtT::insert_bin`] or
+    /// [`MetadataMapExtT::insert_bin_byte`].
+    ///
+    /// Key **SHOULD NOT** be a binary type gRPC Metadata key, though for
+    /// performance consideration, we will not check so.
+    ///
+    /// # Error
+    ///
+    /// - [`InvalidHeaderValue`] if the value contains invalid header value
+    ///   characters.
+    #[inline]
+    fn insert_ascii_any(
+        &mut self,
+        key: impl HeaderKeyExtT,
+        value: impl StringExtT,
+    ) -> Result<&mut Self, InvalidHeaderValue> {
+        self.insert_exact(key.as_header_name(), value.to_http_header_value()?);
         Ok(self)
     }
 
