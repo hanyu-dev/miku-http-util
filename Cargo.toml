@@ -1,8 +1,8 @@
 [package]
 name = "miku-http-util"
-version = "0.2.2"
+version = "0.3.0"
 edition = "2021"
-rust-version = "1.75.0"
+rust-version = "1.76.0"
 
 # === Publication info ===
 authors = ["Hantong Chen <cxwdyx620@gmail.com>"]
@@ -17,18 +17,22 @@ repository = "https://github.com/cxw620/miku-http-util"
 features = ["dev"]
 
 [dependencies]
+anyhow = { version = "1.0.95", default-features = false }
+bytes = { version = "1.9.0", optional = true }
 fluent-uri = { version = "0.3.2", default-features = false, optional = true }
 foldhash = { version = "0.1.4", optional = true }
 http = { version = "1.0.0", optional = true }
 macro-toolset = "0.8.0-rc.3"
 md-5 = { version = "0.10.6", optional = true }
+prost = { version = "0.13.4", optional = true }
 tracing = { version = "0.1.40", default-features = false, optional = true }
 
 [features]
 # For development purposes, enable all features.
-dev = ["feat-integrate-http", "feat-tracing", "feat-request-builder", "feat-request-parser"]
+dev = ["feat-integrate-http", "feat-tracing", "feat-request-builder", "feat-request-header", "feat-request-parser"]
 
 feat-request-builder = ["macro-toolset/feat-string-ext-urlencoding", "dep:md-5", "macro-toolset/feat-hash"]
+feat-request-header = ["dep:bytes", "dep:http", "dep:prost", "macro-toolset/feat-base64"]
 feat-request-parser = ["dep:fluent-uri", "dep:foldhash"]
 
 # Integrate with the `http` crate.
