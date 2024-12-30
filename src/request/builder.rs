@@ -1,6 +1,6 @@
 //! HTTP request utilities: builder related.
 
-use std::{borrow::Cow, convert::Infallible, error::Error};
+use std::{borrow::Cow, convert::Infallible, error::Error, ops};
 
 use macro_toolset::{
     md5, str_concat_v2 as str_concat,
@@ -13,6 +13,14 @@ use macro_toolset::{
 /// Helper for query string building.
 pub struct Queries<'q> {
     inner: Vec<(Cow<'q, str>, Cow<'q, str>)>,
+}
+
+impl<'q> ops::Deref for Queries<'q> {
+    type Target = Vec<(Cow<'q, str>, Cow<'q, str>)>;
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        &self.inner
+    }
 }
 
 impl<'q> Queries<'q> {
@@ -43,6 +51,18 @@ impl<'q> Queries<'q> {
     pub fn sorted(mut self) -> Self {
         self.inner.sort_unstable_by(|l, r| l.0.cmp(&r.0));
         self
+    }
+
+    #[inline]
+    /// Get inner query pairs.
+    pub const fn inner(&self) -> &Vec<(Cow<'q, str>, Cow<'q, str>)> {
+        &self.inner
+    }
+
+    #[inline]
+    /// Get inner query pairs.
+    pub fn into_inner(self) -> Vec<(Cow<'q, str>, Cow<'q, str>)> {
+        self.inner
     }
 
     #[inline]
