@@ -1,22 +1,25 @@
 //! HTTP request utilities: HTTP header related.
 
+use std::convert::Infallible;
+
 use anyhow::{anyhow, Result};
 use http::{
     header::{AsHeaderName, InvalidHeaderValue},
     HeaderMap, HeaderName, HeaderValue,
 };
 use macro_toolset::{
-    b64_decode, b64_encode_bytes, base64::engine::general_purpose::STANDARD_NO_PAD,
-    string_v2::StringExtT,
+    b64_decode, b64_encode,
+    string_v2::{base64::Base64EncoderT, StringExtT},
+    wrapper,
 };
 
 /// Trait helper for managing HTTP header keys.
-pub trait HeaderKeyExtT {
-    /// `as_str` and most times should be &'static
-    fn as_str(&self) -> &str;
+pub trait HeaderKeyT {
+    /// `as_str_ext` and most times should be &'static
+    fn as_str_ext(&self) -> &str;
 
     /// Get the key name
-    fn as_header_name(&self) -> HeaderName;
+    fn to_header_name(self) -> HeaderName;
 
     /// Get default value of the key
     ///
@@ -24,26 +27,78 @@ pub trait HeaderKeyExtT {
     fn default_header_value(&self) -> Option<HeaderValue> {
         None
     }
-
-    /// Get if is an binary type gRPC Metadata key.
-    ///
-    /// By default we treat keys ending with `-bin` as binary keys.
-    fn is_binary_key(&self) -> bool {
-        self.as_str().ends_with("-bin")
-    }
 }
 
-impl HeaderKeyExtT for &'static str {
+/// Trait helper for managing HTTP header keys.
+///
+/// Marker trait for binary keys.
+pub trait HeaderAsciiKeyT: HeaderKeyT {}
+
+/// Trait helper for managing HTTP header keys.
+///
+/// Marker trait for binary keys.
+pub trait HeaderBinaryKeyT: HeaderKeyT {}
+
+impl HeaderKeyT for &'static str {
     #[inline]
-    fn as_str(&self) -> &str {
+    fn as_str_ext(&self) -> &str {
         self
     }
 
     #[inline]
-    fn as_header_name(&self) -> HeaderName {
+    fn to_header_name(self) -> HeaderName {
         HeaderName::from_static(self)
     }
 }
+
+impl HeaderAsciiKeyT for &'static str {}
+
+impl HeaderKeyT for HeaderName {
+    #[inline]
+    fn as_str_ext(&self) -> &str {
+        self.as_str()
+    }
+
+    #[inline]
+    fn to_header_name(self) -> HeaderName {
+        self
+    }
+}
+
+impl HeaderAsciiKeyT for HeaderName {}
+
+wrapper! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    /// Wrapper for binary key, though you have to make sure the key is valid (with `-bin` suffix).
+    ///
+    /// # Panics
+    ///
+    /// Panics if the key is not valid (with `-bin` suffix) when debug mode.
+    pub BinaryKeyWrapper<T>(pub T)
+}
+
+impl<T: HeaderKeyT> HeaderKeyT for BinaryKeyWrapper<T> {
+    #[inline]
+    fn as_str_ext(&self) -> &str {
+        self.inner.as_str_ext()
+    }
+
+    #[inline]
+    fn to_header_name(self) -> HeaderName {
+        debug_assert!(self.as_str_ext().ends_with("-bin"));
+
+        self.inner.to_header_name()
+    }
+
+    #[inline]
+    fn default_header_value(&self) -> Option<HeaderValue> {
+        debug_assert!(self.as_str_ext().ends_with("-bin"));
+
+        self.inner.default_header_value()
+    }
+}
+
+impl<T: HeaderKeyT> HeaderBinaryKeyT for BinaryKeyWrapper<T> {}
 
 /// Trait for extending [`http::HeaderMap`]'s methods.
 ///
@@ -52,15 +107,26 @@ pub trait HeaderMapExtT {
     #[inline]
     /// Returns a reference to the value associated with the key.
     ///
-    /// For gRPC metadata, please use [`MetadataMapExtT::get_bin`] instead.
-    ///
-    /// Key **SHOULD NOT** be a binary type gRPC Metadata key, though for
-    /// performance consideration, we will not check so.
+    /// For gRPC Metadata, please use [`get_bin`](HeaderMapExtT::get_bin)
+    /// instead.
     ///
     /// Notice: if value contains invalid header value characters(non-ascii), it
     /// will be ignored and return `None`.
-    fn get_ascii(&self, key: impl HeaderKeyExtT) -> Option<&str> {
-        self.get_exact(key.as_header_name()).and_then(|v| {
+    fn get_ascii<K>(&self, key: K) -> Option<&str>
+    where
+        K: HeaderAsciiKeyT,
+    {
+        self.get_maybe_ascii(key)
+    }
+
+    #[doc(hidden)]
+    #[inline]
+    /// See [`get_ascii`](HeaderMapExtT::get_ascii) for more details.
+    fn get_maybe_ascii<K>(&self, key: K) -> Option<&str>
+    where
+        K: HeaderKeyT,
+    {
+        self.get_exact(key.to_header_name()).and_then(|v| {
             v.to_str()
                 .inspect_err(|e| {
                     #[cfg(feature = "feat-tracing")]
@@ -70,91 +136,289 @@ pub trait HeaderMapExtT {
         })
     }
 
-    /// Insert general http header
+    #[inline]
+    /// Returns the decoded base64-encoded value associated with the key, if the
+    /// key-value pair exists.
     ///
-    /// For gRPC metadata, please instead use [`MetadataMapExtT::insert_bin`] or
-    /// [`MetadataMapExtT::insert_bin_byte`].
+    /// # Errors
     ///
-    /// Key **SHOULD NOT** be a binary type gRPC Metadata key, though for
-    /// performance consideration, we will not check so.
+    /// - Invalid Base64 string.
+    fn get_bin<K>(&self, key: K) -> Result<Option<Vec<u8>>>
+    where
+        K: HeaderBinaryKeyT,
+    {
+        if let Some(b64_str) = self.get_maybe_ascii(key) {
+            let decoded_bytes = b64_decode!(STANDARD_NO_PAD: b64_str)
+                .map_err(|e| anyhow!(e).context(b64_str.to_string()))?;
+            Ok(Some(decoded_bytes))
+        } else {
+            Ok(None)
+        }
+    }
+
+    #[inline]
+    /// Extend the given buffer with the decoded base64-encoded value associated
+    /// with the key, if the key-value pair exists.
     ///
-    /// # Error
+    /// # Errors
+    ///
+    /// - Invalid Base64 string.
+    fn get_bin_to_buffer<K>(&self, key: K, buffer: &mut Vec<u8>) -> Result<()>
+    where
+        K: HeaderBinaryKeyT,
+    {
+        if let Some(b64_str) = self.get_maybe_ascii(key) {
+            b64_decode!(STANDARD_NO_PAD: b64_str, buffer)?;
+        }
+
+        Ok(())
+    }
+
+    #[inline]
+    /// Returns the struct decoded from the gRPC metadata binary value, if the
+    /// key-value pair exists.
+    ///
+    /// # Errors
+    ///
+    /// - [`prost::DecodeError`].
+    /// - Invalid Base64 string.
+    fn get_bin_struct<K, T>(&self, key: K) -> Result<Option<T>>
+    where
+        K: HeaderBinaryKeyT,
+        T: prost::Message + Default,
+    {
+        if let Some(bin) = self.get_bin(key)? {
+            Ok(Some(T::decode(bin.as_slice())?))
+        } else {
+            Ok(None)
+        }
+    }
+
+    #[inline]
+    /// Returns the struct decoded from the gRPC metadata binary value, or a
+    /// default one if the key-value pair does not exist.
+    ///
+    /// # Errors
+    ///
+    /// - [`prost::DecodeError`].
+    /// - Invalid Base64 string.
+    fn get_bin_struct_or_default<K, T>(&self, key: K) -> Result<T>
+    where
+        K: HeaderBinaryKeyT,
+        T: prost::Message + Default,
+    {
+        if let Some(bin) = self.get_bin(key)? {
+            Ok(T::decode(bin.as_slice())?)
+        } else {
+            Ok(T::default())
+        }
+    }
+
+    /// Inserts a key-value pair into the inner [`HeaderMap`].
+    ///
+    /// For gRPC Metadata, please use
+    /// [`insert_bin`](HeaderMapExtT::insert_bin) instead.
+    ///
+    /// # Errors
     ///
     /// - [`InvalidHeaderValue`] if the value contains invalid header value
     ///   characters.
     #[inline]
-    fn insert_ascii(
+    fn insert_ascii<K, V>(&mut self, key: K, value: V) -> Result<&mut Self, InvalidHeaderValue>
+    where
+        K: HeaderAsciiKeyT,
+        V: TryInto<HeaderValue, Error = InvalidHeaderValue>,
+    {
+        self.insert_maybe_ascii(key, value)
+    }
+
+    #[doc(hidden)]
+    /// See [`insert_ascii`](HeaderMapExtT::insert_ascii).
+    #[inline]
+    fn insert_maybe_ascii<K, V>(
         &mut self,
-        key: impl HeaderKeyExtT,
-        value: impl TryInto<HeaderValue, Error = InvalidHeaderValue>,
-    ) -> Result<&mut Self, InvalidHeaderValue> {
-        self.insert_exact(key.as_header_name(), value.try_into()?);
+        key: K,
+        value: V,
+    ) -> Result<&mut Self, InvalidHeaderValue>
+    where
+        K: HeaderKeyT,
+        V: TryInto<HeaderValue, Error = InvalidHeaderValue>,
+    {
+        self.insert_exact(key.to_header_name(), value.try_into()?);
         Ok(self)
     }
 
-    /// Insert general http header, for any value that implements [`StringExtT`]
+    /// Inserts a key-value pair into the inner [`HeaderMap`].
     ///
-    /// For gRPC metadata, please instead use [`MetadataMapExtT::insert_bin`] or
-    /// [`MetadataMapExtT::insert_bin_byte`].
+    /// `value` can be any type that implements [`StringExtT`].
     ///
-    /// Key **SHOULD NOT** be a binary type gRPC Metadata key, though for
-    /// performance consideration, we will not check so.
+    /// For gRPC Metadata, please use
+    /// [`insert_bin`](HeaderMapExtT::insert_bin) instead.
     ///
-    /// # Error
+    /// # Errors
     ///
     /// - [`InvalidHeaderValue`] if the value contains invalid header value
     ///   characters.
     #[inline]
-    fn insert_ascii_any(
-        &mut self,
-        key: impl HeaderKeyExtT,
-        value: impl StringExtT,
-    ) -> Result<&mut Self, InvalidHeaderValue> {
-        self.insert_exact(key.as_header_name(), value.to_http_header_value()?);
+    fn insert_ascii_any<K, V>(&mut self, key: K, value: V) -> Result<&mut Self, InvalidHeaderValue>
+    where
+        K: HeaderAsciiKeyT,
+        V: StringExtT,
+    {
+        self.insert_exact(key.to_header_name(), value.to_http_header_value()?);
         Ok(self)
     }
 
-    /// Insert general http header
+    /// Inserts a key-value pair into the inner [`HeaderMap`].
     ///
-    /// For gRPC metadata, please instead use [`MetadataMapExtT::insert_bin`] or
-    /// [`MetadataMapExtT::insert_bin_byte`].
-    ///
-    /// Key **SHOULD NOT** be a binary type gRPC Metadata key, though for
-    /// performance consideration, we will not check so.
+    /// For gRPC Metadata, please use
+    /// [`insert_bin`](HeaderMapExtT::insert_bin) instead.
     #[inline]
-    fn insert_ascii_infallible(
-        &mut self,
-        key: impl HeaderKeyExtT,
-        value: impl TryInto<HeaderValue, Error = std::convert::Infallible>,
-    ) -> &mut Self {
-        self.insert_exact(key.as_header_name(), value.try_into().unwrap());
+    fn insert_ascii_infallible<K, V>(&mut self, key: K, value: V) -> &mut Self
+    where
+        K: HeaderAsciiKeyT,
+        V: TryInto<HeaderValue, Error = Infallible>,
+    {
+        self.insert_exact(key.to_header_name(), value.try_into().unwrap());
         self
     }
 
-    /// Insert general http header from &'static str
+    /// Inserts a key-value pair into the inner [`HeaderMap`].
     ///
-    /// # Panic
-    ///
-    /// - The argument `value` contains invalid header value characters.
+    /// For gRPC Metadata, please use
+    /// [`insert_bin`](HeaderMapExtT::insert_bin) instead.
     #[inline]
-    fn insert_static(&mut self, key: impl HeaderKeyExtT, value: &'static str) -> &mut Self {
-        self.insert_exact(key.as_header_name(), HeaderValue::from_static(value));
+    fn insert_ascii_static<K>(&mut self, key: K, value: &'static str) -> &mut Self
+    where
+        K: HeaderAsciiKeyT,
+    {
+        self.insert_exact(key.to_header_name(), HeaderValue::from_static(value));
         self
     }
 
-    /// Insert default value of `T` that implement [`HeaderKeyExtT`]
+    /// Inserts a key-value pair into the inner [`HeaderMap`].
+    ///
+    /// `value` should be base64 string.
+    ///
+    /// # Panics
+    ///
+    /// Panic if the value is not a valid header value (for base64 string, it's
+    /// not possible).
+    #[inline]
+    fn insert_bin<K, V>(&mut self, key: K, value: V) -> &mut Self
+    where
+        K: HeaderBinaryKeyT,
+        V: TryInto<HeaderValue, Error = InvalidHeaderValue>,
+    {
+        self.insert_maybe_ascii(key, value)
+            .expect("Base64 string should be valid header value")
+    }
+
+    /// Inserts a key-value pair into the inner [`HeaderMap`].
+    ///
+    /// `value` can be any type that implement [`Base64EncoderT`].
+    /// See [`b64_padding::STANDARD_NO_PAD::encode`]\(data\), etc for more
+    /// details.
+    ///
+    /// # Panics
+    ///
+    /// Panic if the value is not a valid header value (it's not possible unless
+    /// upstream bug).
+    #[inline]
+    fn insert_bin_any<K, V>(&mut self, key: K, value: V) -> &mut Self
+    where
+        K: HeaderBinaryKeyT,
+        V: Base64EncoderT,
+    {
+        self.insert_exact(
+            key.to_header_name(),
+            value
+                .to_http_header_value()
+                .expect("Base64 string should be valid header value"),
+        )
+    }
+
+    /// Inserts a key-value pair into the inner [`HeaderMap`].
+    ///
+    /// `value` can be any type that implement [`AsRef`]<[u8]>.
+    ///
+    /// # Panics
+    ///
+    /// Panic if the value is not a valid header value (it's not possible unless
+    /// upstream bug).
+    #[inline]
+    fn insert_bin_byte<K, V>(&mut self, key: K, value: V) -> &mut Self
+    where
+        K: HeaderBinaryKeyT,
+        V: AsRef<[u8]>,
+    {
+        // SAFE: Base64 encoded data value must be valid http header value
+        // Here we avoid copy_from_slice since we own the data
+        let value = HeaderValue::from_maybe_shared(
+            b64_encode!(STANDARD_NO_PAD: value.as_ref() => BYTES).freeze(),
+        )
+        .expect("Base64 string should be valid header value");
+        self.insert_exact(key.to_header_name(), value);
+
+        self
+    }
+
+    /// Inserts a key-value pair into the inner [`HeaderMap`].
+    ///
+    /// `value` can be any type that implement [`AsRef`]<[u8]>.
+    ///
+    /// # Errors
+    ///
+    /// - [`prost::EncodeError`]
+    ///
+    /// # Panics
+    ///
+    /// Panic if the value is not a valid header value (it's not possible unless
+    /// upstream bug).
+    #[inline]
+    fn insert_bin_struct<K, V>(&mut self, key: K, value: V) -> Result<&mut Self, prost::EncodeError>
+    where
+        K: HeaderBinaryKeyT,
+        V: prost::Message + Default,
+    {
+        let mut buf = Vec::with_capacity(64);
+        value.encode(&mut buf)?;
+
+        // SAFE: Base64 encoded data value must be valid http header value
+        // Here we avoid copy_from_slice since we own the data
+        let value =
+            HeaderValue::from_maybe_shared(b64_encode!(STANDARD_NO_PAD: buf => BYTES).freeze())
+                .expect("Base64 string should be valid header value");
+        self.insert_exact(key.to_header_name(), value);
+
+        Ok(self)
+    }
+
+    /// Inserts a key-value pair into the inner [`HeaderMap`].
+    ///
+    /// Caller must ensure the value is valid base64 string.
+    #[inline]
+    fn insert_bin_static<K>(&mut self, key: K, value: &'static str) -> &mut Self
+    where
+        K: HeaderBinaryKeyT,
+    {
+        self.insert_exact(key.to_header_name(), HeaderValue::from_static(value));
+        self
+    }
+
+    /// Insert default value of `T` that implement [`HeaderKeyT`]
     ///
     /// It's a no-op if there's no default value.
     #[inline]
-    fn insert_default(&mut self, key: impl HeaderKeyExtT) -> &mut Self {
+    fn insert_default(&mut self, key: impl HeaderKeyT) -> &mut Self {
         if let Some(v) = key.default_header_value() {
-            self.insert_exact(key.as_header_name(), v);
+            self.insert_exact(key.to_header_name(), v);
         }
         self
     }
 
     /// Check if key exist, just a bridge to [`HeaderMap`] or any else
-    fn contains_headerkey(&self, key: impl HeaderKeyExtT) -> bool;
+    fn contains_headerkey(&self, key: impl HeaderKeyT) -> bool;
 
     /// Get value with exact type, just a bridge to [`HeaderMap`] or any else
     ///
@@ -175,7 +439,7 @@ where
     T: HeaderMapExtT,
 {
     #[inline]
-    fn contains_headerkey(&self, key: impl HeaderKeyExtT) -> bool {
+    fn contains_headerkey(&self, key: impl HeaderKeyT) -> bool {
         (**self).contains_headerkey(key)
     }
 
@@ -194,146 +458,10 @@ where
     }
 }
 
-/// Trait for extending [`http::HeaderMap`]'s methods, for gRPC Metadata.
-///
-/// If `T` implements this trait, `&mut T` will also implement this trait.
-pub trait MetadataMapExtT: HeaderMapExtT {
-    #[inline]
-    /// Get gRPC Binary type Metadata
-    ///
-    /// # Error
-    ///
-    /// - Invalid Base64 string.
-    ///
-    /// # Panic
-    ///
-    /// - the argument `key` is not a valid binary type gRPC Metadata key.
-    fn get_bin(&self, key: impl HeaderKeyExtT) -> Result<Option<Vec<u8>>> {
-        debug_assert!(
-            key.is_binary_key(),
-            "[{}] is not a valid binary type gRPC Metadata key",
-            key.as_str()
-        );
-
-        if let Some(b64_str) = self.get_ascii(key) {
-            let decoded_bytes = b64_decode!(b64_str, STANDARD_NO_PAD)
-                .map_err(|e| anyhow!("Invalid base64 string: [{b64_str}]").context(e))?;
-            Ok(Some(decoded_bytes))
-        } else {
-            Ok(None)
-        }
-    }
-
-    #[inline]
-    /// Get gRPC Binary type Metadata, decoded as target struct.
-    ///
-    /// # Error
-    ///
-    /// - [`prost::DecodeError`].
-    /// - Invalid Base64 string.
-    ///
-    /// # Panic
-    ///
-    /// - the argument `key` is not a valid binary type gRPC Metadata key.
-    fn get_bin_decoded<T>(&self, key: impl HeaderKeyExtT) -> Result<Option<T>>
-    where
-        T: prost::Message + Default,
-    {
-        if let Some(bin) = self.get_bin(key)? {
-            Ok(Some(T::decode(bin.as_slice())?))
-        } else {
-            Ok(None)
-        }
-    }
-
-    #[inline]
-    /// Insert gRPC Binary type Metadata from **base64 encoded** str.
-    ///
-    /// If need to insert raw binary data, please instead use
-    /// [`MetadataMapExtT::insert_bin_byte`]. If need to insert struct data,
-    /// please instead use [`MetadataMapExtT::insert_bin_struct`].
-    ///
-    /// # Error
-    ///
-    /// - [`InvalidHeaderValue`] if the value contains invalid header value
-    ///   characters.
-    ///
-    /// # Panic
-    ///
-    /// - the argument `key` is not a valid binary type gRPC Metadata key.
-    fn insert_bin(
-        &mut self,
-        key: impl HeaderKeyExtT,
-        value: impl TryInto<HeaderValue, Error = InvalidHeaderValue>,
-    ) -> Result<&mut Self, InvalidHeaderValue> {
-        debug_assert!(
-            key.is_binary_key(),
-            "[{}] is not a valid binary type gRPC Metadata key",
-            key.as_str()
-        );
-
-        self.insert_exact(key.as_header_name(), value.try_into()?);
-        Ok(self)
-    }
-
-    #[inline]
-    /// Insert gRPC Binary type Metadata from **raw binary data**
-    ///
-    /// Input value should not be base64 encoded str byte but raw binary data,
-    /// or please instead use `insert_bin`.
-    ///
-    /// # Panic
-    ///
-    /// - the argument `key` is not a valid binary type gRPC Metadata key.
-    fn insert_bin_byte(&mut self, key: impl HeaderKeyExtT, value: impl AsRef<[u8]>) -> &mut Self {
-        debug_assert!(
-            key.is_binary_key(),
-            "[{}] is not a valid binary type gRPC Metadata key",
-            key.as_str()
-        );
-
-        // SAFE: Base64 encoded data value must be valid http header value
-        // Here we avoid copy_from_slice since we own the data
-        let value = HeaderValue::from_maybe_shared(b64_encode_bytes!(value)).unwrap();
-        self.insert_exact(key.as_header_name(), value);
-
-        self
-    }
-
-    /// Insert gRPC Binary type Metadata from struct
-    ///
-    /// # Panic
-    ///
-    /// - the argument `key` is not a valid binary type gRPC Metadata key.
-    fn insert_bin_struct<T>(&mut self, key: impl HeaderKeyExtT, value: T) -> &mut Self
-    where
-        T: prost::Message,
-    {
-        debug_assert!(
-            key.is_binary_key(),
-            "[{}] is not a valid binary type gRPC Metadata key",
-            key.as_str()
-        );
-
-        let mut buf = bytes::BytesMut::with_capacity(64);
-        let _ = value.encode(&mut buf);
-
-        self.insert_exact(
-            key.as_header_name(),
-            HeaderValue::from_maybe_shared(buf).unwrap(),
-        );
-
-        self
-    }
-}
-
-// auto impl for `&mut T`
-impl<T> MetadataMapExtT for &mut T where T: MetadataMapExtT {}
-
 impl HeaderMapExtT for HeaderMap {
     #[inline]
-    fn contains_headerkey(&self, key: impl HeaderKeyExtT) -> bool {
-        self.contains_key(key.as_header_name())
+    fn contains_headerkey(&self, key: impl HeaderKeyT) -> bool {
+        self.contains_key(key.to_header_name())
     }
 
     #[inline]
@@ -350,5 +478,3 @@ impl HeaderMapExtT for HeaderMap {
         self
     }
 }
-
-impl MetadataMapExtT for HeaderMap {}
