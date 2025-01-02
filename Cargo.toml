@@ -1,6 +1,6 @@
 [package]
 name = "miku-http-util"
-version = "0.4.0"
+version = "0.4.1"
 edition = "2021"
 rust-version = "1.76.0"
 
@@ -22,7 +22,7 @@ bytes = { version = "1.9.0", optional = true }
 fluent-uri = { version = "0.3.2", default-features = false, optional = true }
 foldhash = { version = "0.1.4", optional = true }
 http = { version = "1.0.0", optional = true }
-macro-toolset = { version = "0.8.0-rc.5", optional = true }
+macro-toolset = { version = "0.8.0-rc.6", optional = true }
 md-5 = { version = "0.10.6", optional = true }
 prost = { version = "0.13.4", optional = true }
 tracing = { version = "0.1.40", default-features = false, optional = true }
