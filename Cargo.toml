@@ -25,12 +25,23 @@ http = { version = "1.0.0", optional = true }
 macro-toolset = { version = "0.8.0-rc.6", optional = true }
 md-5 = { version = "0.10.6", optional = true }
 prost = { version = "0.13.4", optional = true }
-tracing = { version = "0.1.40", default-features = false, optional = true }
+serde = { version = "1.0.217", default-features = false, optional = true }
+serde_json = { version = "1.0.134", optional = true }
+tracing = { version = "0.1.32", default-features = false, optional = true }
 
 [features]
 # For development purposes, enable all features.
-dev = ["feat-integrate-http", "feat-tracing", "feat-request-builder", "feat-request-header", "feat-request-parser"]
+dev = [
+    "feat-integrate-http",
+    "feat-tracing",
+    "feat-request-builder",
+    "feat-request-header",
+    "feat-request-parser",
+    "feat-response",
+    "feat-response-ext-json",
+]
 
+# Request related features.
 feat-request-builder = [
     "dep:macro-toolset",
     "dep:md-5",
@@ -48,11 +59,17 @@ feat-request-header = [
 ]
 feat-request-parser = ["dep:fluent-uri", "dep:foldhash"]
 
+# Response related features.
+feat-response = ["dep:bytes", "dep:http"]
+# Enable JSON support for response.
+feat-response-ext-json = ["dep:serde", "dep:serde_json"]
+
 # Integrate with the `http` crate.
 feat-integrate-http = ["dep:http"]
 
 # Enable tracing support.
 feat-tracing = ["dep:tracing"]
+
 
 # === Lints config ===
 
