@@ -2,7 +2,7 @@
 name = "miku-http-util"
 version = "0.4.1"
 edition = "2021"
-rust-version = "1.76.0"
+rust-version = "1.80.0"
 
 # === Publication info ===
 authors = ["Hantong Chen <cxwdyx620@gmail.com>"]
@@ -22,9 +22,11 @@ bytes = { version = "1.9.0", optional = true }
 fluent-uri = { version = "0.3.2", default-features = false, optional = true }
 foldhash = { version = "0.1.4", optional = true }
 http = { version = "1.0.0", optional = true }
+http-body-util = { version = "0.1", optional = true }
 macro-toolset = { version = "0.8.0-rc.6", optional = true }
 md-5 = { version = "0.10.6", optional = true }
 prost = { version = "0.13.4", optional = true }
+rquest = { version = "1.3", default-features = false, optional = true }
 serde = { version = "1.0.217", default-features = false, optional = true }
 serde_json = { version = "1.0.134", optional = true }
 tracing = { version = "0.1.32", default-features = false, optional = true }
@@ -33,6 +35,7 @@ tracing = { version = "0.1.32", default-features = false, optional = true }
 # For development purposes, enable all features.
 dev = [
     "feat-integrate-http",
+    "feat-integrate-rquest",
     "feat-tracing",
     "feat-request-builder",
     "feat-request-header",
@@ -66,10 +69,10 @@ feat-response-ext-json = ["dep:serde", "dep:serde_json"]
 
 # Integrate with the `http` crate.
 feat-integrate-http = ["dep:http"]
+feat-integrate-rquest = ["dep:rquest", "dep:http-body-util"]
 
 # Enable tracing support.
 feat-tracing = ["dep:tracing"]
-
 
 # === Lints config ===
 
