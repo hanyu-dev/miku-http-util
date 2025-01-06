@@ -1,6 +1,11 @@
 //! HTTP request utilities: parser related.
 
-use std::{borrow::Cow, collections::HashMap, sync::Arc};
+use std::{
+    borrow::{Borrow, Cow},
+    collections::HashMap,
+    hash::Hash,
+    sync::Arc,
+};
 
 use macro_toolset::wrapper;
 
@@ -66,6 +71,42 @@ impl OwnedQueries {
     /// Parse query string from [`http::Uri`].
     pub fn parse_uri(uri: &http::Uri) -> Option<Self> {
         uri.query().map(Self::parse)
+    }
+
+    #[allow(clippy::multiple_bound_locations)]
+    #[inline]
+    /// Since [`OwnedQueries`] is a wrapper of [`Arc<HashMap<Arc<str>,
+    /// Arc<str>>>`] and implements `Deref`, without this you can still call
+    /// [`HashMap::get`] (though auto deref), however you will get an
+    /// `Option<&Arc<str>>`, and `&Arc<str>` is probably not what you want.
+    ///
+    /// Here's an example:
+    ///
+    /// ```no_run
+    /// let data: OwnedQueries = ...;
+    /// let example = data.get("example").unwrap(); // &Arc<str>
+    /// assert!(example, "example");
+    /// ```
+    ///
+    /// `assert!(example, "example")` will not compile at all, you must change
+    /// it to `assert!(&**example, "example")`:
+    ///
+    /// ```no_run
+    /// & * *example
+    /// ││└ &Arc<str> deref to Arc<str>
+    /// │└ Arc<str> deref to str
+    /// └ &str
+    /// ```
+    ///
+    /// This is really not convenient and graceful, so we provide this method as
+    /// an replacement of [`HashMap::get`].
+    /// See [*The Rustonomicon - The Dot Operator*](https://doc.rust-lang.org/nomicon/dot-operator.html) for the reason why we can do so.
+    pub fn get<Q: ?Sized>(&self, k: &Q) -> Option<&str>
+    where
+        Arc<str>: Borrow<Q>,
+        Q: Hash + Eq,
+    {
+        self.inner.get(k).map(|v| &**v)
     }
 
     #[inline]
