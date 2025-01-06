@@ -1,5 +1,8 @@
 //! HTTP request utilities: parser related.
 
+#[cfg(feature = "feat-integrate-tower")]
+pub mod tower_service;
+
 use std::{
     borrow::{Borrow, Cow},
     collections::HashMap,
