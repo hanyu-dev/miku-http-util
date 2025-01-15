@@ -9,7 +9,7 @@ use http::{
 };
 use macro_toolset::{
     b64_decode, b64_encode,
-    string_v2::{base64::Base64EncoderT, StringExtT},
+    string::{base64::Base64EncoderT, StringExtT},
     wrapper,
 };
 

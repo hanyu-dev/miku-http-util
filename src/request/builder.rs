@@ -3,8 +3,8 @@
 use std::{borrow::Cow, convert::Infallible, ops};
 
 use macro_toolset::{
-    md5, str_concat_v2 as str_concat,
-    string_v2::{general::tuple::SeplessTuple, PushAnyT, StringExtT},
+    md5, str_concat,
+    string::{general::tuple::SeplessTuple, PushAnyT, StringExtT},
     urlencoding_str,
 };
 
