@@ -35,7 +35,7 @@ impl<'q> Queries<'q> {
 
         Self {
             inner: EStr::<IQuery>::new(query)
-                .unwrap_or_else(|| {
+                .unwrap_or({
                     #[cfg(feature = "feat-tracing")]
                     tracing::warn!("Failed to parse `{query}`");
 
@@ -43,7 +43,8 @@ impl<'q> Queries<'q> {
                 })
                 .split('&')
                 .map(|pair| {
-                    pair.split_once('=').unwrap_or_else(|| {
+                    pair.split_once('=').unwrap_or({
+                        #[cfg(feature = "feat-tracing")]
                         tracing::warn!("Failed to split query pair: {:?}", pair);
 
                         (pair, EStr::EMPTY)
@@ -119,7 +120,7 @@ impl OwnedQueries {
 
         Self {
             inner: EStr::<IQuery>::new(query)
-                .unwrap_or_else(|| {
+                .unwrap_or({
                     #[cfg(feature = "feat-tracing")]
                     tracing::warn!("Failed to parse `{query}`");
 
@@ -127,7 +128,8 @@ impl OwnedQueries {
                 })
                 .split('&')
                 .map(|pair| {
-                    pair.split_once('=').unwrap_or_else(|| {
+                    pair.split_once('=').unwrap_or({
+                        #[cfg(feature = "feat-tracing")]
                         tracing::warn!("Failed to split query pair: {:?}", pair);
 
                         (pair, EStr::EMPTY)

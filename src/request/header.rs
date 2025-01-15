@@ -128,9 +128,9 @@ pub trait HeaderMapExtT {
     {
         self.get_exact(key.to_header_name()).and_then(|v| {
             v.to_str()
-                .inspect_err(|e| {
+                .inspect_err(|_e| {
                     #[cfg(feature = "feat-tracing")]
-                    tracing::warn!("Invalid header value [{v:?}]: {e:?}");
+                    tracing::warn!("Invalid header value [{v:?}]: {_e:?}");
                 })
                 .ok()
         })
