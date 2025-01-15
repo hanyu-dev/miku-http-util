@@ -18,6 +18,7 @@ features = ["dev"]
 
 [dependencies]
 anyhow = { version = "1.0.95", default-features = false }
+base64 = { version = "0.22.1", optional = true }
 bytes = { version = "1.9.0", optional = true }
 fluent-uri = { version = "0.3.2", default-features = false, optional = true }
 foldhash = { version = "0.1.4", optional = true }
@@ -25,13 +26,18 @@ http = { version = "1.0.0", optional = true }
 http-body-util = { version = "0.1", optional = true }
 macro-toolset = { version = "0.8.0", optional = true }
 md-5 = { version = "0.10.6", optional = true }
+percent-encoding = { version = "2.3.1", optional = true }
 prost = { version = "0.13.4", optional = true }
 rquest = { version = "1.5.0", default-features = false, optional = true }
 serde = { version = "1.0.217", default-features = false, optional = true }
 serde_json = { version = "1.0.135", optional = true }
+thiserror = { version = "2.0.0", optional = true }
 tower-layer = { version = "0.3.3", optional = true }
 tower-service = { version = "0.3.3", optional = true }
 tracing = { version = "0.1.32", default-features = false, optional = true }
+
+[dev-dependencies]
+serde_json = "1.0.135"
 
 [features]
 # For development purposes, enable all features.
@@ -43,6 +49,7 @@ dev = [
     "feat-request-builder",
     "feat-request-header",
     "feat-request-parser",
+    "feat-request-misc-proxy",
     "feat-response",
     "feat-response-ext-json",
 ]
@@ -64,6 +71,15 @@ feat-request-header = [
     "macro-toolset/feat-string-ext-http",
 ]
 feat-request-parser = ["dep:fluent-uri", "dep:foldhash", "dep:macro-toolset"]
+feat-request-misc-proxy = [
+    "dep:base64",
+    "dep:bytes",
+    "dep:fluent-uri",
+    "dep:percent-encoding",
+    "dep:serde",
+    "dep:thiserror",
+    "fluent-uri/std",
+]
 
 # Response related features.
 feat-response = ["dep:bytes", "dep:http"]

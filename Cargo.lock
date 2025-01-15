@@ -784,6 +784,7 @@ name = "miku-http-util"
 version = "0.5.3"
 dependencies = [
  "anyhow",
+ "base64",
  "bytes",
  "fluent-uri",
  "foldhash",
@@ -791,10 +792,12 @@ dependencies = [
  "http-body-util",
  "macro-toolset",
  "md-5",
+ "percent-encoding",
  "prost",
  "rquest",
  "serde",
  "serde_json",
+ "thiserror",
  "tower-layer",
  "tower-service",
  "tracing",
@@ -1193,6 +1196,26 @@ checksum = "8e1d1b10ced5ca923a1fcb8d03e96b8d3268065d724548c0211415ff6ac6bac4"
 dependencies = [
  "core-foundation-sys",
  "libc",
+]
+
+[[package]]
+name = "thiserror"
+version = "2.0.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d452f284b73e6d76dd36758a0c8684b1d5be31f92b89d07fd5822175732206fc"
+dependencies = [
+ "thiserror-impl",
+]
+
+[[package]]
+name = "thiserror-impl"
+version = "2.0.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "26afc1baea8a989337eeb52b6e72a039780ce45c3edfcc9c5b9d112feeb173c2"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]
