@@ -2,8 +2,7 @@
 
 use axum::{extract::Request, handler::Handler};
 
-use super::utils::{ParseQueryError, ParseQueryResult};
-use crate::request::parser::OwnedQuery;
+use super::parse_query;
 
 #[macro_export]
 /// Just [`WithQueryHandler::new`].
@@ -34,27 +33,7 @@ where
     type Future = H::Future;
 
     fn call(self, mut req: Request, state: S) -> Self::Future {
-        if let Some(owned_query) = req.uri().query().map(OwnedQuery::parse) {
-            #[cfg(feature = "feat-tracing")]
-            tracing::trace!("Found query: {:?}", owned_query);
-
-            let owned_query = self
-                .required
-                .iter()
-                .find_map(|&key| {
-                    if !owned_query.contains_key(key) {
-                        #[cfg(feature = "feat-tracing")]
-                        tracing::error!(key, "Missing query key");
-
-                        Some(ParseQueryResult::Err(ParseQueryError::MissingKey(key)))
-                    } else {
-                        None
-                    }
-                })
-                .unwrap_or(ParseQueryResult::Ok(owned_query));
-
-            req.extensions_mut().insert(owned_query);
-        }
+        parse_query(&mut req, self.required);
 
         self.inner.call(req, state)
     }

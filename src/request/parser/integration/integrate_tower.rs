@@ -10,8 +10,7 @@ use http::Request;
 use tower_layer::Layer;
 use tower_service::Service;
 
-use super::utils::{ParseQueryError, ParseQueryResult};
-use crate::request::parser::OwnedQuery;
+use super::parse_query;
 
 #[deprecated(since = "0.6.0")]
 /// Renamed, use [`WithQueryLayer`] instead.
@@ -136,27 +135,7 @@ where
     }
 
     fn call(&mut self, mut req: Request<ReqBody>) -> Self::Future {
-        if let Some(owned_query) = req.uri().query().map(OwnedQuery::parse) {
-            #[cfg(feature = "feat-tracing")]
-            tracing::trace!("Found query: {:?}", owned_query);
-
-            let owned_query = self
-                .required
-                .iter()
-                .find_map(|&key| {
-                    if !owned_query.contains_key(key) {
-                        #[cfg(feature = "feat-tracing")]
-                        tracing::error!(key, "Missing query key");
-
-                        Some(ParseQueryResult::Err(ParseQueryError::MissingKey(key)))
-                    } else {
-                        None
-                    }
-                })
-                .unwrap_or(ParseQueryResult::Ok(owned_query));
-
-            req.extensions_mut().insert(owned_query);
-        }
+        parse_query(&mut req, self.required);
 
         self.inner.call(req)
     }

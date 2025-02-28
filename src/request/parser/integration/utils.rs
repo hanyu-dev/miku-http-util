@@ -30,3 +30,39 @@ pub enum ParseQueryError {
     /// Missing required query key
     MissingKey(&'static str),
 }
+
+#[inline]
+pub(super) fn parse_query<ReqBody>(req: &mut Request<ReqBody>, required: &'static [&'static str]) {
+    match req.uri().query().map(OwnedQuery::parse) {
+        Some(owned_query) => {
+            #[cfg(feature = "feat-tracing")]
+            tracing::trace!("Found query: {:?}", owned_query);
+
+            let owned_query = required
+                .iter()
+                .find_map(|&key| {
+                    if !owned_query.contains_key(key) {
+                        #[cfg(feature = "feat-tracing")]
+                        tracing::error!(key, "Missing query key.");
+
+                        Some(ParseQueryResult::Err(ParseQueryError::MissingKey(key)))
+                    } else {
+                        None
+                    }
+                })
+                .unwrap_or(ParseQueryResult::Ok(owned_query));
+
+            req.extensions_mut().insert(owned_query);
+        }
+        None => {
+            if !required.is_empty() {
+                #[cfg(feature = "feat-tracing")]
+                tracing::error!("Missing query.");
+
+                req.extensions_mut().insert(Some(ParseQueryResult::Err(
+                    ParseQueryError::MissingKey(required[0]),
+                )));
+            }
+        }
+    }
+}
