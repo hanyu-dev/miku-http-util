@@ -35,19 +35,4 @@ impl ResponseExt {
             }
         }
     }
-
-    #[cfg(feature = "feat-integrate-rquest")]
-    /// Helper to convert a [`rquest::Response`] to a [`ResponseExt`]
-    pub async fn from_rquest_response(response: rquest::Response) -> anyhow::Result<Self> {
-        use http_body_util::BodyExt;
-
-        let response: http::Response<rquest::Body> = response.into();
-
-        let (response_parts, body) = response.into_parts();
-
-        Ok(ResponseExt {
-            response_parts,
-            body: BodyExt::collect(body).await.map(|buf| buf.to_bytes())?,
-        })
-    }
 }

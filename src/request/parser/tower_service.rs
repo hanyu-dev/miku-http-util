@@ -28,7 +28,7 @@ impl<ReqBody, ResBody> Clone for QueriesLayer<ReqBody, ResBody> {
     }
 }
 
-#[allow(unsafe_code, reason = "")]
+#[allow(unsafe_code)]
 unsafe impl<ReqBody, ResBody> Sync for QueriesLayer<ReqBody, ResBody> {}
 
 impl<ReqBody, ResBody> QueriesLayer<ReqBody, ResBody> {
@@ -78,7 +78,7 @@ where
     }
 }
 
-#[allow(unsafe_code, reason = "")]
+#[allow(unsafe_code)]
 unsafe impl<S, ReqBody, ResBody> Sync for QueriesServcie<S, ReqBody, ResBody> where S: Sync {}
 
 impl<S, ReqBody, ResBody> Service<Request<ReqBody>> for QueriesServcie<S, ReqBody, ResBody>

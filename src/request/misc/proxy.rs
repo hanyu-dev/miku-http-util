@@ -103,7 +103,7 @@ impl FromStr for ProxyScheme {
                         tracing::error!("Rare bug: http::uri::Authority reports error {e:?}");
                     }
 
-                    #[allow(unreachable_code, reason = "cfg")]
+                    #[allow(unreachable_code)]
                     Error::InvalidUri(e)
                 })?;
 
