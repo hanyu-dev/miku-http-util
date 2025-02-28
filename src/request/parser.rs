@@ -1,7 +1,7 @@
 //! HTTP request utilities: parser related.
 
 #[cfg(feature = "feat-integrate-tower")]
-pub mod tower_service;
+pub mod integration;
 
 use std::{
     borrow::{Borrow, Cow},

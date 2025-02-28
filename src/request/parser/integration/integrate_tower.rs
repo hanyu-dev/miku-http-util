@@ -10,28 +10,8 @@ use http::Request;
 use tower_layer::Layer;
 use tower_service::Service;
 
-use super::OwnedQuery;
-
-#[inline]
-/// Helper function to extract [`OwnedQuery`] from
-/// [`Extensions`](http::Extensions) within given [`Request`].
-pub fn get_queries<ReqBody>(request: &Request<ReqBody>) -> Result<Option<&OwnedQuery>> {
-    match request
-        .extensions()
-        .get::<Result<OwnedQuery, ParseQueriesError>>()
-    {
-        Some(Ok(data)) => Ok(Some(data)),
-        Some(Err(e)) => Err((*e).into()),
-        None => Ok(None),
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-#[derive(thiserror::Error)]
-enum ParseQueriesError {
-    #[error("missing query key `{0}`")]
-    MissingKey(&'static str),
-}
+use super::utils::{ParseQueryResult, ParseQueryError};
+use crate::request::parser::OwnedQuery;
 
 #[derive(Debug, Default, Copy)]
 #[repr(transparent)]
@@ -137,24 +117,22 @@ where
             #[cfg(feature = "feat-tracing")]
             tracing::trace!("Found queries: {:?}", owned_queries);
 
-            let mut has_error = false;
-            for &key in self.required {
-                if !owned_queries.contains_key(key) {
-                    #[cfg(feature = "feat-tracing")]
-                    tracing::error!(key, "Missing query key");
+            let owned_queries = self
+                .required
+                .into_iter()
+                .find_map(|&key| {
+                    if !owned_queries.contains_key(key) {
+                        #[cfg(feature = "feat-tracing")]
+                        tracing::error!(key, "Missing query key");
 
-                    has_error = true;
-                    req.extensions_mut()
-                        .insert(Err::<OwnedQuery, _>(ParseQueriesError::MissingKey(key)));
+                        Some(ParseQueryResult::Err(ParseQueryError::MissingKey(key)))
+                    } else {
+                        None
+                    }
+                })
+                .unwrap_or_else(|| ParseQueryResult::Ok(owned_queries));
 
-                    break;
-                }
-            }
-
-            if !has_error {
-                req.extensions_mut()
-                    .insert(Ok::<_, ParseQueriesError>(owned_queries));
-            }
+            req.extensions_mut().insert(owned_queries);
         }
 
         self.inner.call(req)
