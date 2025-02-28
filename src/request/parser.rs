@@ -12,15 +12,23 @@ use std::{
 
 use macro_toolset::wrapper;
 
+#[deprecated(since = "0.6.0")]
+/// Renamed and deprecated, use [`Query`] instead.
+pub type Queries<'q> = Query<'q>;
+
+#[deprecated(since = "0.6.0")]
+/// Renamed and deprecated, use [`OwnedQuery`] instead.
+pub type OwnedQueries = OwnedQuery;
+
 wrapper! {
     #[derive(Debug, Clone)]
     /// Helper for query string parsing.
     ///
     /// You may also need [`OwnedQueries`].
-    pub Queries<'q>(HashMap<Cow<'q, str>, Cow<'q, str>, foldhash::fast::RandomState>)
+    pub Query<'q>(HashMap<Cow<'q, str>, Cow<'q, str>, foldhash::fast::RandomState>)
 }
 
-impl<'q> Queries<'q> {
+impl<'q> Query<'q> {
     #[cfg(feature = "feat-integrate-http")]
     #[inline]
     /// Parse query string from [`http::Uri`].
@@ -66,10 +74,10 @@ wrapper! {
     /// Helper for query string parsing.
     ///
     /// You may also need [`Queries`] if you just want a borrowed version.
-    pub OwnedQueries(Arc<HashMap<Arc<str>, Arc<str>, foldhash::fast::RandomState>>)
+    pub OwnedQuery(Arc<HashMap<Arc<str>, Arc<str>, foldhash::fast::RandomState>>)
 }
 
-impl OwnedQueries {
+impl OwnedQuery {
     #[cfg(feature = "feat-integrate-http")]
     #[inline]
     /// Parse query string from [`http::Uri`].

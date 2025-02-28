@@ -10,15 +10,15 @@ use http::Request;
 use tower_layer::Layer;
 use tower_service::Service;
 
-use super::OwnedQueries;
+use super::OwnedQuery;
 
 #[inline]
-/// Helper function to extract [`OwnedQueries`] from
+/// Helper function to extract [`OwnedQuery`] from
 /// [`Extensions`](http::Extensions) within given [`Request`].
-pub fn get_queries<ReqBody>(request: &Request<ReqBody>) -> Result<Option<&OwnedQueries>> {
+pub fn get_queries<ReqBody>(request: &Request<ReqBody>) -> Result<Option<&OwnedQuery>> {
     match request
         .extensions()
-        .get::<Result<OwnedQueries, ParseQueriesError>>()
+        .get::<Result<OwnedQuery, ParseQueriesError>>()
     {
         Some(Ok(data)) => Ok(Some(data)),
         Some(Err(e)) => Err((*e).into()),
@@ -133,7 +133,7 @@ where
     }
 
     fn call(&mut self, mut req: Request<ReqBody>) -> Self::Future {
-        if let Some(owned_queries) = req.uri().query().map(OwnedQueries::parse) {
+        if let Some(owned_queries) = req.uri().query().map(OwnedQuery::parse) {
             #[cfg(feature = "feat-tracing")]
             tracing::trace!("Found queries: {:?}", owned_queries);
 
@@ -145,7 +145,7 @@ where
 
                     has_error = true;
                     req.extensions_mut()
-                        .insert(Err::<OwnedQueries, _>(ParseQueriesError::MissingKey(key)));
+                        .insert(Err::<OwnedQuery, _>(ParseQueriesError::MissingKey(key)));
 
                     break;
                 }
