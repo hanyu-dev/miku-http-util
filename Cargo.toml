@@ -1,6 +1,6 @@
 [package]
 name = "miku-http-util"
-version = "0.6.0-rc.1"
+version = "0.6.0-rc.2"
 edition = "2021"
 rust-version = "1.80.0"
 
@@ -90,8 +90,14 @@ feat-response-ext-json = ["dep:serde", "dep:serde_json"]
 
 # Integrate with the `http` crate.
 feat-integrate-http = ["dep:http"]
-feat-integrate-axum = ["dep:axum"]
-feat-integrate-tower = ["dep:thiserror", "dep:tower-service", "dep:tower-layer"]
+feat-integrate-axum = ["feat-request-parser", "feat-integrate-http", "dep:thiserror", "dep:axum"]
+feat-integrate-tower = [
+    "feat-request-parser",
+    "feat-integrate-http",
+    "dep:thiserror",
+    "dep:tower-service",
+    "dep:tower-layer",
+]
 
 # Enable tracing support.
 feat-tracing = ["dep:tracing"]
