@@ -52,16 +52,17 @@ pub(super) fn parse_query<ReqBody>(req: &mut Request<ReqBody>, required: &'stati
                 })
                 .unwrap_or(ParseQueryResult::Ok(owned_query));
 
-            req.extensions_mut().insert(owned_query);
+            req.extensions_mut().insert::<ParseQueryResult>(owned_query);
         }
         None => {
             if !required.is_empty() {
                 #[cfg(feature = "feat-tracing")]
                 tracing::error!("Missing query.");
 
-                req.extensions_mut().insert(Some(ParseQueryResult::Err(
-                    ParseQueryError::MissingKey(required[0]),
-                )));
+                req.extensions_mut()
+                    .insert::<ParseQueryResult>(ParseQueryResult::Err(
+                        ParseQueryError::MissingKey(required[0]),
+                    ));
             }
         }
     }
