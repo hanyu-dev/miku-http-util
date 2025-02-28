@@ -1,4 +1,4 @@
-//! `axum` integration for [`OwnedQueries`].
+//! `axum` integration for [`OwnedQuery`](OwnedQuery).
 
 use axum::{extract::Request, handler::Handler};
 
@@ -6,7 +6,7 @@ use super::utils::{ParseQueryError, ParseQueryResult};
 use crate::request::parser::OwnedQuery;
 
 #[macro_export]
-/// Just [`WithQueriesHandler::new`].
+/// Just [`WithQueryHandler::new`].
 macro_rules! query_keys_required {
     ($handler:expr => $required:expr) => {
         $crate::request::parser::integration::WithQueryHandler::new($handler, $required)
@@ -21,7 +21,7 @@ pub struct WithQueryHandler<H> {
 }
 
 impl<H> WithQueryHandler<H> {
-    /// Create a new [`WithQueriesHandler`].
+    /// Create a new [`WithQueryHandler`].
     pub const fn new(inner: H, required: &'static [&'static str]) -> Self {
         Self { inner, required }
     }
@@ -34,15 +34,15 @@ where
     type Future = H::Future;
 
     fn call(self, mut req: Request, state: S) -> Self::Future {
-        if let Some(owned_queries) = req.uri().query().map(OwnedQuery::parse) {
+        if let Some(owned_query) = req.uri().query().map(OwnedQuery::parse) {
             #[cfg(feature = "feat-tracing")]
-            tracing::trace!("Found queries: {:?}", owned_queries);
+            tracing::trace!("Found query: {:?}", owned_query);
 
-            let owned_queries = self
+            let owned_query = self
                 .required
-                .into_iter()
+                .iter()
                 .find_map(|&key| {
-                    if !owned_queries.contains_key(key) {
+                    if !owned_query.contains_key(key) {
                         #[cfg(feature = "feat-tracing")]
                         tracing::error!(key, "Missing query key");
 
@@ -51,9 +51,9 @@ where
                         None
                     }
                 })
-                .unwrap_or_else(|| ParseQueryResult::Ok(owned_queries));
+                .unwrap_or(ParseQueryResult::Ok(owned_query));
 
-            req.extensions_mut().insert(owned_queries);
+            req.extensions_mut().insert(owned_query);
         }
 
         self.inner.call(req, state)

@@ -24,7 +24,7 @@ pub fn get_query<ReqBody>(request: &Request<ReqBody>) -> Result<Option<&OwnedQue
 
 #[derive(Debug, Clone, Copy)]
 #[derive(thiserror::Error)]
-/// ParseQueriesError
+/// `ParseQueryError`
 pub enum ParseQueryError {
     #[error("missing query key `{0}`")]
     /// Missing required query key

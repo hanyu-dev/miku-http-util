@@ -1,6 +1,6 @@
 //! HTTP request utilities: parser related.
 
-#[cfg(feature = "feat-integrate-tower")]
+#[cfg(any(feature = "feat-integrate-axum", feature = "feat-integrate-tower"))]
 pub mod integration;
 
 use std::{
@@ -24,7 +24,7 @@ wrapper! {
     #[derive(Debug, Clone)]
     /// Helper for query string parsing.
     ///
-    /// You may also need [`OwnedQueries`].
+    /// You may also need [`OwnedQuery`].
     pub Query<'q>(HashMap<Cow<'q, str>, Cow<'q, str>, foldhash::fast::RandomState>)
 }
 
@@ -73,7 +73,7 @@ wrapper! {
     #[derive(Debug, Clone)]
     /// Helper for query string parsing.
     ///
-    /// You may also need [`Queries`] if you just want a borrowed version.
+    /// You may also need [`Query`] if you just want a borrowed version.
     pub OwnedQuery(Arc<HashMap<Arc<str>, Arc<str>, foldhash::fast::RandomState>>)
 }
 
@@ -87,15 +87,15 @@ impl OwnedQuery {
 
     #[allow(clippy::multiple_bound_locations)]
     #[inline]
-    /// Since [`OwnedQueries`] is a wrapper of [`Arc<HashMap<Arc<str>,
+    /// Since [`OwnedQuery`] is a wrapper of [`Arc<HashMap<Arc<str>,
     /// Arc<str>>>`] and implements `Deref`, without this you can still call
     /// [`HashMap::get`] (though auto deref), however you will get an
     /// `Option<&Arc<str>>`, and `&Arc<str>` is probably not what you want.
     ///
     /// Here's an example:
     ///
-    /// ```no_run
-    /// let data: OwnedQueries = ...;
+    /// ```ignore
+    /// let data: OwnedQuery = ...;
     /// let example = data.get("example").unwrap(); // &Arc<str>
     /// assert!(example, "example");
     /// ```
@@ -103,7 +103,7 @@ impl OwnedQuery {
     /// `assert!(example, "example")` will not compile at all, you must change
     /// it to `assert!(&**example, "example")`:
     ///
-    /// ```no_run
+    /// ```ignore
     /// & * *example
     /// ││└ &Arc<str> deref to Arc<str>
     /// │└ Arc<str> deref to str

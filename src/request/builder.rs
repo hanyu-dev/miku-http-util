@@ -8,14 +8,18 @@ use macro_toolset::{
     urlencoding_str,
 };
 
+#[deprecated(since = "0.6.0")]
+/// Renamed and deprecated, use [`Query`] instead.
+pub type Queries<'q> = Query<'q>;
+
 #[derive(Debug)]
 #[repr(transparent)]
 /// Helper for query string building.
-pub struct Queries<'q> {
+pub struct Query<'q> {
     inner: Vec<(Cow<'q, str>, Cow<'q, str>)>,
 }
 
-impl<'q> ops::Deref for Queries<'q> {
+impl<'q> ops::Deref for Query<'q> {
     type Target = Vec<(Cow<'q, str>, Cow<'q, str>)>;
     #[inline]
     fn deref(&self) -> &Self::Target {
@@ -23,7 +27,7 @@ impl<'q> ops::Deref for Queries<'q> {
     }
 }
 
-impl<'q> Queries<'q> {
+impl<'q> Query<'q> {
     #[inline]
     /// Create a new empty query string builder.
     pub fn with_capacity(capacity: usize) -> Self {
@@ -86,7 +90,7 @@ pub trait SignerT {
     type Error;
 
     /// Sign the query string and return the final query string.
-    fn build_signed(self, queries: Queries) -> Result<String, Self::Error>;
+    fn build_signed(self, query: Query) -> Result<String, Self::Error>;
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -116,13 +120,13 @@ impl Default for Md5Signer<'_> {
 
 impl SignerT for Md5Signer<'_> {
     type Error = Infallible;
-    fn build_signed(self, queries: Queries) -> Result<String, Self::Error> {
-        let queries = queries.sorted();
+    fn build_signed(self, query: Query) -> Result<String, Self::Error> {
+        let query = query.sorted();
 
         let mut final_string_buf = String::with_capacity(64);
 
         final_string_buf.push_any_with_separator(
-            queries
+            query
                 .inner
                 .iter()
                 .map(|(k, v)| SeplessTuple::new((k, "=", urlencoding_str!(E: v)))),
@@ -204,14 +208,14 @@ mod tests {
 
     #[test]
     fn test_general() {
-        let queries = Queries::with_capacity(16)
+        let query = Query::with_capacity(16)
             .push_any("test1", 1)
             .push_any("test2", "2")
             .build_signed(Md5Signer::new_default().with_suffix_salt(Some("0123456789abcdef")))
             .unwrap();
 
         assert_eq!(
-            queries,
+            query,
             "test1=1&test2=2&sign=cc4f5844a6a1893a88d648cebba5462f"
         )
     }

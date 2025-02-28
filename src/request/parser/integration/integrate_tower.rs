@@ -1,4 +1,4 @@
-//! `tower` integration for [`OwnedQueries`].
+//! `tower` integration for [`OwnedQuery`](OwnedQuery).
 
 use std::{
     marker::PhantomData,
@@ -10,14 +10,22 @@ use http::Request;
 use tower_layer::Layer;
 use tower_service::Service;
 
-use super::utils::{ParseQueryResult, ParseQueryError};
+use super::utils::{ParseQueryError, ParseQueryResult};
 use crate::request::parser::OwnedQuery;
+
+#[deprecated(since = "0.6.0")]
+/// Renamed, use [`WithQueryLayer`] instead.
+pub type QueriesLayer<ReqBody> = WithQueryLayer<ReqBody>;
+
+#[deprecated(since = "0.6.0")]
+/// Renamed, use [`WithQueryLayer`] instead.
+pub type QueriesServcie<S, ReqBody> = WithQueryService<S, ReqBody>;
 
 #[derive(Debug, Default, Copy)]
 #[repr(transparent)]
-/// [`Layer`] for parsing [`OwnedQueries`] from a [`Request`] and insert into
+/// [`Layer`] for parsing [`OwnedQuery`] from a [`Request`] and insert into
 /// the [`Request`] extensions.
-pub struct QueriesLayer<ReqBody> {
+pub struct WithQueryLayer<ReqBody> {
     _req_body: PhantomData<ReqBody>,
     required: &'static [&'static str],
 }
@@ -25,7 +33,7 @@ pub struct QueriesLayer<ReqBody> {
 // `ReqBody`, `ResBody` is just type markers, we actually don't care
 // about what actually it is, but the compiler will complain that *`Clone` is
 // needed* if we just `#[derive(Clone)]`
-impl<ReqBody> Clone for QueriesLayer<ReqBody> {
+impl<ReqBody> Clone for WithQueryLayer<ReqBody> {
     fn clone(&self) -> Self {
         Self {
             _req_body: PhantomData,
@@ -38,10 +46,10 @@ impl<ReqBody> Clone for QueriesLayer<ReqBody> {
 // SAFETY: `ReqBody`, `ResBody` is just type markers, we actually don't care
 // about what actually it is, but compiler complains about `the type parameter
 // `B` is not constrained by ***`.
-unsafe impl<ReqBody> Sync for QueriesLayer<ReqBody> {}
+unsafe impl<ReqBody> Sync for WithQueryLayer<ReqBody> {}
 
-impl<ReqBody> QueriesLayer<ReqBody> {
-    /// Create a new [`QueriesLayer`].
+impl<ReqBody> WithQueryLayer<ReqBody> {
+    /// Create a new [`WithQueryLayer`].
     ///
     /// # Params
     ///
@@ -54,14 +62,14 @@ impl<ReqBody> QueriesLayer<ReqBody> {
     }
 }
 
-impl<S, ReqBody> Layer<S> for QueriesLayer<ReqBody>
+impl<S, ReqBody> Layer<S> for WithQueryLayer<ReqBody>
 where
     S: Service<Request<ReqBody>> + Send + 'static,
 {
-    type Service = QueriesServcie<S, ReqBody>;
+    type Service = WithQueryService<S, ReqBody>;
 
     fn layer(&self, inner: S) -> Self::Service {
-        QueriesServcie {
+        WithQueryService {
             inner,
             required: self.required,
             _req_body: PhantomData,
@@ -70,18 +78,33 @@ where
 }
 
 #[derive(Debug)]
-/// [`Service`] for parsing [`OwnedQueries`] from a [`Request`] and insert into
+/// [`Service`] for parsing [`OwnedQuery`] from a [`Request`] and insert into
 /// the [`Request`] extensions.
-pub struct QueriesServcie<S, ReqBody> {
+pub struct WithQueryService<S, ReqBody> {
     inner: S,
     required: &'static [&'static str],
     _req_body: PhantomData<ReqBody>,
 }
 
+impl<S, ReqBody> WithQueryService<S, ReqBody> {
+    /// Create a new [`WithQueryService`].
+    ///
+    /// # Params
+    ///
+    /// - `required`: required query keys
+    pub const fn new(inner: S, required: &'static [&'static str]) -> Self {
+        Self {
+            inner,
+            required,
+            _req_body: PhantomData,
+        }
+    }
+}
+
 // `ReqBody`, `ResBody` is just type markers, we actually don't care
 // about what actually it is, but the compiler will complain that *`Clone` is
 // needed* if we just `#[derive(Clone)]`
-impl<S, ReqBody> Clone for QueriesServcie<S, ReqBody>
+impl<S, ReqBody> Clone for WithQueryService<S, ReqBody>
 where
     S: Clone,
 {
@@ -98,9 +121,9 @@ where
 // SAFETY: `ReqBody`, `ResBody` is just type markers, we actually don't care
 // about what actually it is, but compiler complains about `the type parameter
 // `B` is not constrained by ***`.
-unsafe impl<S, ReqBody> Sync for QueriesServcie<S, ReqBody> where S: Sync {}
+unsafe impl<S, ReqBody> Sync for WithQueryService<S, ReqBody> where S: Sync {}
 
-impl<S, ReqBody> Service<Request<ReqBody>> for QueriesServcie<S, ReqBody>
+impl<S, ReqBody> Service<Request<ReqBody>> for WithQueryService<S, ReqBody>
 where
     S: Service<Request<ReqBody>> + Send + 'static,
 {
@@ -113,15 +136,15 @@ where
     }
 
     fn call(&mut self, mut req: Request<ReqBody>) -> Self::Future {
-        if let Some(owned_queries) = req.uri().query().map(OwnedQuery::parse) {
+        if let Some(owned_query) = req.uri().query().map(OwnedQuery::parse) {
             #[cfg(feature = "feat-tracing")]
-            tracing::trace!("Found queries: {:?}", owned_queries);
+            tracing::trace!("Found query: {:?}", owned_query);
 
-            let owned_queries = self
+            let owned_query = self
                 .required
-                .into_iter()
+                .iter()
                 .find_map(|&key| {
-                    if !owned_queries.contains_key(key) {
+                    if !owned_query.contains_key(key) {
                         #[cfg(feature = "feat-tracing")]
                         tracing::error!(key, "Missing query key");
 
@@ -130,9 +153,9 @@ where
                         None
                     }
                 })
-                .unwrap_or_else(|| ParseQueryResult::Ok(owned_queries));
+                .unwrap_or(ParseQueryResult::Ok(owned_query));
 
-            req.extensions_mut().insert(owned_queries);
+            req.extensions_mut().insert(owned_query);
         }
 
         self.inner.call(req)
