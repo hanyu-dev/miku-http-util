@@ -76,7 +76,7 @@ impl<'q> Query<'q> {
     /// Build the query string, unsigned.
     pub fn build(self) -> String {
         str_concat!(sep = "&"; self.inner.iter().map(|(k, v)| {
-            (k, "=", urlencoding_str!(E: v))
+            SeplessTuple::new((k, "=", urlencoding_str!(E: v)))
         }))
     }
 
