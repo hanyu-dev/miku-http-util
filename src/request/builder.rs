@@ -24,9 +24,16 @@ pub struct Query<'q> {
 
 impl<'q> ops::Deref for Query<'q> {
     type Target = Vec<(Cow<'q, str>, Cow<'q, str>)>;
+
     #[inline]
     fn deref(&self) -> &Self::Target {
         &self.inner
+    }
+}
+
+impl Default for Query<'_> {
+    fn default() -> Self {
+        Self::with_capacity(4)
     }
 }
 

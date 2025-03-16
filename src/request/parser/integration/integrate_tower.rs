@@ -126,9 +126,9 @@ impl<S, ReqBody> Service<Request<ReqBody>> for WithQueryService<S, ReqBody>
 where
     S: Service<Request<ReqBody>> + Send + 'static,
 {
-    type Response = S::Response;
     type Error = S::Error;
     type Future = S::Future;
+    type Response = S::Response;
 
     fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         self.inner.poll_ready(cx)
