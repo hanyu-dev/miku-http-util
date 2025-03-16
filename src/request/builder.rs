@@ -73,7 +73,44 @@ impl<'q> Query<'q> {
     }
 
     #[inline]
-    /// Build the query string, unsigned.
+    /// Apply an infallible interceptor to the query string builder.
+    pub fn intercept<F>(mut self, f: F) -> Self
+    where
+        F: Fn(&mut Self),
+    {
+        f(&mut self);
+
+        self
+    }
+
+    #[inline]
+    /// Apply a fallible interceptor to the query string builder.
+    pub fn intercept_fallible<F, E>(mut self, f: F) -> Result<Self, E>
+    where
+        F: Fn(&mut Self) -> Result<(), E>,
+    {
+        f(&mut self)?;
+
+        Ok(self)
+    }
+
+    /// Apply a batch of fallible interceptors to the query string builder.
+    ///
+    /// Will stop immediately if any interceptor returns an error.
+    pub fn batch_intercept_fallible<I, E>(mut self, interceptors: I) -> Result<Self, E>
+    where
+        I: Iterator,
+        I::Item: Fn(&mut Self) -> Result<(), E>,
+    {
+        for f in interceptors {
+            f(&mut self)?;
+        }
+
+        Ok(self)
+    }
+
+    #[inline]
+    /// Simply build the query string.
     pub fn build(self) -> String {
         str_concat!(sep = "&"; self.inner.iter().map(|(k, v)| {
             SeplessTuple::new((k, "=", urlencoding_str!(E: v)))
