@@ -33,6 +33,15 @@ impl<'q> ops::Deref for Query<'q> {
 impl<'q> Query<'q> {
     #[inline]
     /// Create a new empty query string builder.
+    ///
+    /// This is not recommended for general use unless const is needed.
+    /// [`Query::with_capacity`] is recommended.
+    pub const fn new() -> Self {
+        Self { inner: Vec::new() }
+    }
+
+    #[inline]
+    /// Create a new empty query string builder.
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
             inner: Vec::with_capacity(capacity),
@@ -48,6 +57,9 @@ impl<'q> Query<'q> {
 
     #[inline]
     /// Push a new key-value pair into the query string builder.
+    ///
+    /// This accepts any value that can be converted into a string. See
+    /// [`StringExtT`] for more details.
     pub fn push_any(mut self, key: impl Into<Cow<'q, str>>, value: impl StringExtT) -> Self {
         self.inner.push((key.into(), value.to_string_ext().into()));
         self
@@ -67,7 +79,7 @@ impl<'q> Query<'q> {
     }
 
     #[inline]
-    /// Get inner query pairs.
+    /// Consume the builder and get the inner query pairs.
     pub fn into_inner(self) -> Vec<(Cow<'q, str>, Cow<'q, str>)> {
         self.inner
     }
