@@ -1,6 +1,6 @@
 [package]
 name = "miku-http-util"
-version = "0.6.0-rc.5"
+version = "0.6.0"
 edition = "2021"
 rust-version = "1.80.0"
 

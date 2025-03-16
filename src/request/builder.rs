@@ -123,6 +123,7 @@ impl Default for Md5Signer<'_> {
 
 impl SignerT for Md5Signer<'_> {
     type Error = Infallible;
+
     fn build_signed(self, query: Query) -> Result<String, Self::Error> {
         let query = query.sorted();
 
