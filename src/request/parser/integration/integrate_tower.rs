@@ -12,11 +12,11 @@ use tower_service::Service;
 
 use super::parse_query;
 
-#[deprecated(since = "0.6.0")]
+#[deprecated(since = "0.6.0", note = "Renamed, use `WithQueryLayer` instead.")]
 /// Renamed, use [`WithQueryLayer`] instead.
 pub type QueriesLayer<ReqBody> = WithQueryLayer<ReqBody>;
 
-#[deprecated(since = "0.6.0")]
+#[deprecated(since = "0.6.0", note = "Renamed, use `WithQueryService` instead.")]
 /// Renamed, use [`WithQueryLayer`] instead.
 pub type QueriesServcie<S, ReqBody> = WithQueryService<S, ReqBody>;
 

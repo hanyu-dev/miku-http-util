@@ -8,7 +8,10 @@ use macro_toolset::{
     urlencoding_str,
 };
 
-#[deprecated(since = "0.6.0")]
+#[deprecated(
+    since = "0.6.0",
+    note = "Renamed and deprecated, use [`Query`] instead."
+)]
 /// Renamed and deprecated, use [`Query`] instead.
 pub type Queries<'q> = Query<'q>;
 
