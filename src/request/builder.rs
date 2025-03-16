@@ -66,9 +66,17 @@ impl<'q> Query<'q> {
     }
 
     #[inline]
+    /// Sort the inner query pairs by key.
+    ///
+    /// See [`sort_unstable_by`](https://doc.rust-lang.org/std/primitive.slice.html#method.sort_unstable_by) for more details about the time complexity.
+    pub fn sort(&mut self) {
+        self.inner.sort_unstable_by(|l, r| l.0.cmp(&r.0));
+    }
+
+    #[inline]
     /// Sort the query pairs by key.
     pub fn sorted(mut self) -> Self {
-        self.inner.sort_unstable_by(|l, r| l.0.cmp(&r.0));
+        self.sort();
         self
     }
 
